@@ -159,6 +159,12 @@ class FilesController {
       .limit(20)
       .toArray();
 
+    files.forEach((file) => {
+      /* eslint-disable no-param-reassign */
+      file.id = file._id;
+      delete file._id;
+      /* eslint-disable no-param-reassign */
+    });
     return res.status(200).json(files);
   }
 
