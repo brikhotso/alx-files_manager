@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongodb';
+import { getMongoInstance, ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
@@ -71,12 +71,7 @@ class FilesController {
       const uuid = uuidv4();
       const localPath = path.join(folderPath, uuid);
       const clearData = Buffer.from(data, 'base64');
-      try {
-        await fs.promises.writeFile(localPath, clearData);
-      } catch (error) {
-        return res.status(500).json({ error: 'Failed to save file' });
-      }
-
+      await fs.promises.writeFile(localPath, clearData);
       let fileParentId = '0';
       if (parentId !== '0') {
         fileParentId = parentFolder._id.toString();
@@ -87,7 +82,7 @@ class FilesController {
         type,
         isPublic,
         parentId: fileParentId,
-        localPath, // Store the local path in the database
+        localPath,
       };
     }
 
@@ -135,6 +130,8 @@ class FilesController {
       return res.status(404).json({ error: 'Not found' });
     }
 
+    file.id = file._id;
+    delete file._id;
     return res.status(200).json(file);
   }
 
@@ -230,24 +227,29 @@ class FilesController {
   static async getFile(req, res) {
     try {
       const fileId = req.params.id;
-      const filesCollection = await dbClient.client.db().collection('files');
+      const { userId } = req;
+      const filesCollection = getMongoInstance().db().collection('files');
       const file = await filesCollection.findOne({ _id: ObjectId(fileId) });
 
       if (!file) {
-        return res.status(404).json({ error: 'Not found' });
+        res.status(404).json({ error: 'Not found' });
+        return;
       }
 
-      if (!file.isPublic && (!req.userId || file.userId !== req.userId.toString())) {
-        return res.status(404).json({ error: 'Not found' });
+      if (!file.isPublic && (!userId || file.userId !== userId.toString())) {
+        res.status(404).json({ error: 'Not found' });
+        return;
       }
 
       if (file.type === 'folder') {
-        return res.status(400).json({ error: "A folder doesn't have content" });
+        res.status(400).json({ error: "A folder doesn't have content" });
+        return;
       }
 
-      const filePath = file.localPath; // Use the localPath stored in the DB
+      const filePath = path.join(__dirname, '..', 'uploads', file.id.toString());
       if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'Not found' });
+        res.status(404).json({ error: 'Not found' });
+        return;
       }
 
       const mimeType = mime.lookup(file.name);
@@ -257,7 +259,7 @@ class FilesController {
         fileStream.pipe(res);
       });
     } catch (err) {
-      return res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 }
