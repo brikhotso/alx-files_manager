@@ -3,9 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
 import mime from 'mime-types';
+import Queue from 'bull';
 import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
-import Queue from 'bull';
 
 const fileQueue = new Queue('file generation');
 
@@ -15,29 +15,38 @@ class FilesController {
     const {
       name, type, parentId = '0', isPublic = false, data,
     } = req.body;
+
     if (!token) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+
     const key = `auth_${token}`;
     const userId = await redisClient.get(key);
+
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+
     if (!name) {
       return res.status(400).json({ error: 'Missing name' });
     }
+
     if (!type || !['folder', 'file', 'image'].includes(type)) {
       return res.status(400).json({ error: 'Missing type' });
     }
+
     if (type !== 'folder' && !data) {
       return res.status(400).json({ error: 'Missing data' });
     }
 
     let parentFolder;
     if (parentId !== '0') {
-      parentFolder = await dbClient.client.db().collection('files').findOne({ _id: ObjectId(parentId), type: 'folder' });
+      parentFolder = await dbClient.client.db().collection('files').findOne({ _id: ObjectId(parentId) });
       if (!parentFolder) {
         return res.status(400).json({ error: 'Parent not found' });
+      }
+      if (parentFolder.type !== 'folder') {
+        return res.status(400).json({ error: 'Parent is not a folder' });
       }
     }
 
@@ -56,6 +65,9 @@ class FilesController {
       };
     } else {
       const folderPath = process.env.FOLDER_PATH || '/tmp/files_manager';
+      if (!fs.existsSync(folderPath)) {
+        fs.mkdirSync(folderPath, { recursive: true });
+      }
       const uuid = uuidv4();
       const localPath = path.join(folderPath, uuid);
       const clearData = Buffer.from(data, 'base64');
@@ -75,7 +87,8 @@ class FilesController {
     }
 
     const result = await dbClient.client.db().collection('files').insertOne(newFile);
-    // Add a job to the queue for generating thumbnails
+
+    // Add a job to the queue for generating thumbnails if the file is of type image
     if (type === 'image') {
       const fileId = result.insertedId.toString();
       fileQueue.add({
@@ -83,6 +96,7 @@ class FilesController {
         fileId,
       });
     }
+
     return res.status(201).json({
       id: result.insertedId.toString(),
       userId,
