@@ -188,7 +188,7 @@ class FilesController {
         .findOneAndUpdate(
           { _id: ObjectId(fileId), userId },
           { $set: { isPublic: true } },
-          { returnOriginal: false }
+          { returnOriginal: false },
         );
 
       if (!file.value) {
@@ -222,7 +222,7 @@ class FilesController {
         .findOneAndUpdate(
           { _id: ObjectId(fileId), userId },
           { $set: { isPublic: false } },
-          { returnOriginal: false }
+          { returnOriginal: false },
         );
 
       if (!file.value) {
@@ -275,5 +275,4 @@ class FilesController {
     }
   }
 }
-
 export default FilesController;
