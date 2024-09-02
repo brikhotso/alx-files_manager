@@ -57,7 +57,7 @@ class FilesController {
         folderParentId = parentFolder._id.toString();
       }
       newFile = {
-        userId,
+        userId: ObjectId(userId),
         name,
         type,
         isPublic,
@@ -77,7 +77,7 @@ class FilesController {
         fileParentId = parentFolder._id.toString();
       }
       newFile = {
-        userId,
+        userId: ObjectId(userId),
         name,
         type,
         isPublic,
@@ -91,14 +91,14 @@ class FilesController {
     if (type === 'image') {
       const fileId = result.insertedId.toString();
       fileQueue.add({
-        userId,
+        userId: ObjectId(userId),
         fileId,
       });
     }
 
     return res.status(201).json({
       id: result.insertedId.toString(),
-      userId,
+      userId: userId.toString(),
       name,
       type,
       isPublic,
