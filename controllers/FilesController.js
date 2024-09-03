@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongodb';
+import { getMongoInstance, ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
@@ -130,8 +130,8 @@ class FilesController {
       return res.status(404).json({ error: 'Not found' });
     }
 
-    //file.id = file._id;
-    //delete file._id;
+    // file.id = file._id;
+    // delete file._id;
     return res.status(200).json(file);
   }
 
