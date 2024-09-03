@@ -130,8 +130,8 @@ class FilesController {
       return res.status(404).json({ error: 'Not found' });
     }
 
-    file.id = file._id;
-    delete file._id;
+    //file.id = file._id;
+    //delete file._id;
     return res.status(200).json(file);
   }
 
@@ -236,25 +236,43 @@ class FilesController {
   }
 
   static async getFile(req, res) {
-    const token = req.header('X-Token');
-    const userId = await redisClient.get(`auth_${token}`);
-    const fileId = req.params.id;
-    const { size } = req.query;
-    const file = await dbClient.dbClient.collection('files').findOne({ _id: ObjectId(fileId) });
+    try {
+      const fileId = req.params.id;
+      const { userId } = req;
+      const filesCollection = getMongoInstance().db().collection('files');
+      const file = await filesCollection.findOne({ _id: ObjectId(fileId) });
 
-    if (!file || (!file.isPublic && (!userId || userId !== file.userId.toString()))) {
-      return res.status(404).json({ error: 'Not found' });
+      if (!file) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+      }
+
+      if (!file.isPublic && (!userId || file.userId !== userId.toString())) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+      }
+
+      if (file.type === 'folder') {
+        res.status(400).json({ error: "A folder doesn't have content" });
+        return;
+      }
+
+      const filePath = path.join(__dirname, '..', 'uploads', file.id.toString());
+      if (!fs.existsSync(filePath)) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+      }
+
+      const mimeType = mime.lookup(file.name);
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.on('open', () => {
+        res.set('Content-Type', mimeType);
+        fileStream.pipe(res);
+      });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
     }
-
-    if (file.type === 'folder') return res.status(400).json({ error: "A folder doesn't have content" });
-
-    let { localPath } = file;
-    if (size) localPath = `${localPath}_${size}`;
-
-    if (!fs.existsSync(localPath)) return res.status(404).json({ error: 'Not found' });
-
-    res.setHeader('Content-Type', mime.lookup(file.name));
-    return res.sendFile(localPath);
   }
 }
+
 export default FilesController;
